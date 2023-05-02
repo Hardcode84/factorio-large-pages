@@ -598,32 +598,41 @@ static void* findSig(void* data, size_t dataSize, const void* sig, size_t sigLen
   return nullptr;
 }
 
+struct orig_ptrs {
+    void   (*free) (void*);
+    size_t (*msize)(void*);
+};
+
 extern "C" {
 __declspec(dllimport) void  __TBB_malloc_safer_free( void *ptr, void (*original_free)(void*));
+__declspec(dllimport) void * __TBB_malloc_safer_realloc( void *ptr, size_t, void* );
+__declspec(dllimport) size_t __TBB_malloc_safer_msize( void *ptr, size_t (*orig_msize_crt80d)(void*));
 } // extern "C"
 
 static void* __cdecl malloc_proxy(size_t size) {
-  return malloc(size);
-//  return scalable_malloc(size);
+//  return malloc(size);
+  return scalable_malloc(size);
 }
 
 static void* __cdecl calloc_proxy(size_t count, size_t size) {
-  return calloc(count, size);
-//  return scalable_calloc(count, size);
+//  return calloc(count, size);
+  return scalable_calloc(count, size);
 }
 
 static void* __cdecl realloc_proxy(void* ptr, size_t size) {
-  return realloc(ptr, size);
-//  return scalable_realloc(ptr, size);
+//  return realloc(ptr, size);
+  orig_ptrs funcPtrs = {&free, &_msize};
+  return __TBB_malloc_safer_realloc(ptr, size, &funcPtrs);
 }
 
 static void __cdecl free_proxy(void* ptr) {
-  free(ptr);
-//  __TBB_malloc_safer_free(ptr, &free);
+//  free(ptr);
+  __TBB_malloc_safer_free(ptr, &free);
 }
 
 static size_t __cdecl msize_proxy(void* ptr) {
-  return _msize(ptr);
+//  return _msize(ptr);
+  return __TBB_malloc_safer_msize(ptr, &_msize);
 }
 
 static void* __cdecl recalloc_proxy(void* ptr, size_t count, size_t size) {
