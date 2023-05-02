@@ -599,10 +599,7 @@ static void* findSig(void* data, size_t dataSize, const void* sig, size_t sigLen
 }
 
 extern "C" {
-__declspec(dllimport) void   __TBB_malloc_safer_free( void *ptr, void (*original_free)(void*));
-__declspec(dllimport) void * __TBB_malloc_safer_realloc( void *ptr, size_t, void* );
-__declspec(dllimport) void * __TBB_malloc_safer_aligned_realloc( void *ptr, size_t, size_t, void* );
-__declspec(dllimport) size_t __TBB_malloc_safer_msize( void *ptr, size_t (*orig_msize_crt80d)(void*));
+__declspec(dllimport) void  __TBB_malloc_safer_free( void *ptr, void (*original_free)(void*));
 } // extern "C"
 
 static void* __cdecl malloc_proxy(size_t size) {
@@ -615,19 +612,27 @@ static void* __cdecl calloc_proxy(size_t count, size_t size) {
 //  return scalable_calloc(count, size);
 }
 
-static void* realloc_proxy(void* ptr, size_t size) {
+static void* __cdecl realloc_proxy(void* ptr, size_t size) {
   return realloc(ptr, size);
 //  return scalable_realloc(ptr, size);
 }
 
-static void free_proxy(void* ptr) {
+static void __cdecl free_proxy(void* ptr) {
   free(ptr);
 //  __TBB_malloc_safer_free(ptr, &free);
 }
 
+static size_t __cdecl msize_proxy(void* ptr) {
+  return _msize(ptr);
+}
+
 static void* __cdecl recalloc_proxy(void* ptr, size_t count, size_t size) {
-  auto res = realloc_proxy(ptr, count * size);
-  memset(res, 0, count * size);
+  const size_t oldBlockSize = (ptr != nullptr) ? msize_proxy(ptr) : 0;
+  const size_t newBlockSize = count * size;
+  auto res = realloc_proxy(ptr, newBlockSize);
+  if (res  && oldBlockSize < newBlockSize) {
+    memset(static_cast<char*>(res) + oldBlockSize, 0, newBlockSize - oldBlockSize);
+  }
   return res;
 }
 
