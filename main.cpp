@@ -97,8 +97,15 @@ static int impl(int argc, char* argv[]) {
   auto largePageSize = GetLargePageMinimum();
   std::cout << "GetLargePageMinimum: " << largePageSize << std::endl;
 
-//  SetEnvironmentVariable("TBB_MALLOC_USE_HUGE_PAGES", "1");
-//  SetEnvironmentVariable("TBB_VERSION", "1");
+  auto testPtr = VirtualAlloc(nullptr, largePageSize, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE);
+  if (!testPtr) {
+    std::cout << "Huge page allocation failed: " << GetLastError() << std::endl;
+    return 1;
+  }
+  VirtualFree(testPtr, 0, MEM_RELEASE);
+
+  SetEnvironmentVariable("TBB_MALLOC_USE_HUGE_PAGES", "1");
+  SetEnvironmentVariable("TBB_VERSION", "1");
 
   std::cout << "Getting LoadLibraryA handle" << std::endl;
   auto hKernel32 = GetModuleHandle("Kernel32");
