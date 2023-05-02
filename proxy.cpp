@@ -409,7 +409,7 @@ static bool InsertTrampoline(void *inpAddr, void *targetAddr, const char ** opco
     // Change page protection to EXECUTE+WRITE
     DWORD origProt = 0;
     if (!VirtualProtect(inpAddr, MAX_PROBE_SIZE, PAGE_EXECUTE_WRITECOPY, &origProt))
-        return FALSE;
+        return false;
 
     const char* pattern = nullptr;
     if ( origFunc ){ // Need to store original function code
@@ -436,144 +436,12 @@ static bool InsertTrampoline(void *inpAddr, void *targetAddr, const char ** opco
     VirtualProtect(inpAddr, MAX_PROBE_SIZE, origProt, &origProt);
 
     if (!probeSize)
-        return FALSE;
+        return false;
 
     FlushInstructionCache(GetCurrentProcess(), inpAddr, probeSize);
     FlushInstructionCache(GetCurrentProcess(), origFunc, probeSize);
 
-    return TRUE;
-}
-
-// Routine to replace the functions
-// TODO: replace opcodesNumber with opcodes and opcodes number to check if we replace right code.
-static FRR_TYPE ReplaceFunctionA(const char *dllName, const char *funcName, FUNCPTR newFunc, const char ** opcodes, FUNCPTR* origFunc)
-{
-    // Cache the results of the last search for the module
-    // Assume that there was no DLL unload between
-    static char cachedName[MAX_PATH+1];
-    static HMODULE cachedHM = 0;
-
-    if (!dllName || !*dllName)
-        return FRR_NODLL;
-
-    if (!cachedHM || strncmp(dllName, cachedName, MAX_PATH) != 0)
-    {
-        // Find the module handle for the input dll
-        HMODULE hModule = GetModuleHandleA(dllName);
-        if (hModule == 0)
-        {
-            // Couldn't find the module with the input name
-            cachedHM = 0;
-            return FRR_NODLL;
-        }
-
-        cachedHM = hModule;
-        strncpy(cachedName, dllName, MAX_PATH);
-    }
-
-    FARPROC inpFunc = GetProcAddress(cachedHM, funcName);
-    if (inpFunc == 0)
-    {
-        // Function was not found
-        return FRR_NOFUNC;
-    }
-
-    if (!InsertTrampoline((void*)inpFunc, (void*)newFunc, opcodes, (void**)origFunc)){
-        // Failed to insert the trampoline to the target address
-        return FRR_FAILED;
-    }
-
-    return FRR_OK;
-}
-
-//static void myPrint(const char* str) {
-//  auto out = GetStdHandle(STD_ERROR_HANDLE);
-//  if(out && out!=INVALID_HANDLE_VALUE) {
-//      DWORD written = 0;
-//      WriteFile(out, str, strlen(str), &written, nullptr);
-//      FlushFileBuffers(out);
-//  }
-//}
-
-static void ReplaceFunctionWithStore( const char *dllName, const char *funcName, FUNCPTR newFunc, const char ** opcodes, FUNCPTR* origFunc,  FRR_ON_ERROR on_error = FRR_FAIL )
-{
-    FRR_TYPE res = ReplaceFunctionA( dllName, funcName, newFunc, opcodes, origFunc );
-
-    if (res == FRR_OK || res == FRR_NODLL || (res == FRR_NOFUNC && on_error == FRR_IGNORE))
-        return;
-
-    fprintf(stderr, "Failed to %s function %s in module %s\n",
-            res==FRR_NOFUNC? "find" : "replace", funcName, dllName);
-
-    // Unable to replace a required function
-    // Aborting because incomplete replacement of memory management functions
-    // may leave the program in an invalid state
-    abort();
-}
-
-const char* known_bytecodes[] = {
-#if _WIN64
-//  "========================================================" - 56 symbols
-    "4883EC284885C974",       // release free()
-    "4883EC284885C975",       // release _msize()
-    "4885C974375348",         // release free() 8.0.50727.42, 10.0
-    "E907000000CCCC",         // release _aligned_msize(), _aligned_free() ucrtbase.dll
-    "C7442410000000008B",     // release free() ucrtbase.dll 10.0.14393.33
-    "E90B000000CCCC",         // release _msize() ucrtbase.dll 10.0.14393.33
-    "48895C24085748",         // release _aligned_msize() ucrtbase.dll 10.0.14393.33
-    "E903000000CCCC",         // release _aligned_msize() ucrtbase.dll 10.0.16299.522
-    "48894C24084883EC28BA",   // debug prologue
-    "4C894424184889542410",   // debug _aligned_msize() 10.0
-    "48894C24084883EC2848",   // debug _aligned_free 10.0
-    "488BD1488D0D#*******E9", // _o_free(), ucrtbase.dll
- #if __TBB_OVERLOAD_OLD_MSVCR
-    "48895C2408574883EC3049", // release _aligned_msize 9.0
-    "4883EC384885C975",       // release _msize() 9.0
-    "4C8BC1488B0DA6E4040033", // an old win64 SDK
- #endif
-#else // _WIN32
-//  "========================================================" - 56 symbols
-    "8BFF558BEC8B",           // multiple
-    "8BFF558BEC83",           // release free() & _msize() 10.0.40219.325, _msize() ucrtbase.dll
-    "8BFF558BECFF",           // release _aligned_msize ucrtbase.dll
-    "8BFF558BEC51",           // release free() & _msize() ucrtbase.dll 10.0.14393.33
-    "558BEC8B450885C074",     // release _aligned_free 11.0
-    "558BEC837D08000F",       // release _msize() 11.0.51106.1
-    "558BEC837D08007419FF",   // release free() 11.0.50727.1
-    "558BEC8B450885C075",     // release _aligned_msize() 11.0.50727.1
-    "558BEC6A018B",           // debug free() & _msize() 11.0
-    "558BEC8B451050",         // debug _aligned_msize() 11.0
-    "558BEC8B450850",         // debug _aligned_free 11.0
-    "8BFF558BEC6A",           // debug free() & _msize() 10.0.40219.325
- #if __TBB_OVERLOAD_OLD_MSVCR
-    "6A1868********E8",       // release free() 8.0.50727.4053, 9.0
-    "6A1C68********E8",       // release _msize() 8.0.50727.4053, 9.0
- #endif
-#endif // _WIN64/_WIN32
-    nullptr
-    };
-
-static decltype(&HeapAlloc) origHeapAlloc;
-static decltype(&HeapReAlloc) origHeapReAlloc;
-static decltype(&HeapFree) origHeapFree;
-
-static void* WINAPI HeapAllocProxy(HANDLE /*hHeap*/, DWORD dwFlags, SIZE_T dwBytes) {
-  void* ptr = scalable_malloc(dwBytes);
-  if (dwFlags & HEAP_ZERO_MEMORY)
-    std::memset(ptr, 0, dwBytes);
-  return ptr;
-}
-
-static void* WINAPI HeapReAllocProxy(HANDLE /*hHeap*/, DWORD dwFlags, void* lpMem, SIZE_T dwBytes) {
-  void* ptr = scalable_realloc(lpMem, dwBytes);
-  if (dwFlags & HEAP_ZERO_MEMORY)
-    std::memset(ptr, 0, dwBytes);
-  return ptr;
-}
-
-static BOOL WINAPI HeapFreeProxy(HANDLE /*hHeap*/, DWORD dwFlags, void* lpMem) {
-  scalable_free(lpMem);
-  return TRUE;
+    return true;
 }
 
 static constexpr const unsigned char mallocSig[] = {0x40, 0x53, 0x48, 0x83, 0xec, 0x20, 0x48, 0x8b, 0xd9, 0x48, 0x83, 0xf9, 0xe0, 0x77, 0x3c, 0x48, 0x85, 0xc9, 0xb8, 0x01, 0x00, 0x00, 0x00, 0x48, 0x0f, 0x44, 0xd8, 0xeb, 0x15, 0xe8, 0xde, 0xab, 0xff, 0xff, 0x85, 0xc0, 0x74, 0x25, 0x48, 0x8b, 0xcb, 0xe8, 0x2a, 0x82, 0xfe, 0xff, 0x85, 0xc0, 0x74, 0x19, 0x48, 0x8b, 0x0d, 0x13, 0xbe, 0x8f, 0x00, 0x4c, 0x8b, 0xc3, 0x33, 0xd2, 0xff, 0x15, 0xd0, 0x08, 0x0e, 0x00};
