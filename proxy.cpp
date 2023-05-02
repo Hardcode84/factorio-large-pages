@@ -609,30 +609,47 @@ __declspec(dllimport) void * __TBB_malloc_safer_realloc( void *ptr, size_t, void
 __declspec(dllimport) size_t __TBB_malloc_safer_msize( void *ptr, size_t (*orig_msize_crt80d)(void*));
 } // extern "C"
 
+static const bool Replace = true;
+
 static void* __cdecl malloc_proxy(size_t size) {
-//  return malloc(size);
-  return scalable_malloc(size);
+  if (Replace) {
+    return scalable_malloc(size);
+  } else {
+    return malloc(size);
+  }
 }
 
 static void* __cdecl calloc_proxy(size_t count, size_t size) {
-//  return calloc(count, size);
-  return scalable_calloc(count, size);
+  if (Replace) {
+    return scalable_calloc(count, size);
+  } else {
+    return calloc(count, size);
+  }
 }
 
 static void* __cdecl realloc_proxy(void* ptr, size_t size) {
-//  return realloc(ptr, size);
-  orig_ptrs funcPtrs = {&free, &_msize};
-  return __TBB_malloc_safer_realloc(ptr, size, &funcPtrs);
+  if (Replace) {
+    orig_ptrs funcPtrs = {&free, &_msize};
+    return __TBB_malloc_safer_realloc(ptr, size, &funcPtrs);
+  } else {
+    return realloc(ptr, size);
+  }
 }
 
 static void __cdecl free_proxy(void* ptr) {
-//  free(ptr);
-  __TBB_malloc_safer_free(ptr, &free);
+  if (Replace) {
+    __TBB_malloc_safer_free(ptr, &free);
+  } else {
+    free(ptr);
+  }
 }
 
 static size_t __cdecl msize_proxy(void* ptr) {
-//  return _msize(ptr);
-  return __TBB_malloc_safer_msize(ptr, &_msize);
+  if (Replace) {
+    return __TBB_malloc_safer_msize(ptr, &_msize);
+  } else {
+    return _msize(ptr);
+  }
 }
 
 static void* __cdecl recalloc_proxy(void* ptr, size_t count, size_t size) {
