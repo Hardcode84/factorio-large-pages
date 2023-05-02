@@ -4,6 +4,8 @@
 
 #include "oneapi/tbb/scalable_allocator.h"
 
+// Trampoline code stolen tbbmalloc_proxy
+
 typedef enum {
     FRR_OK,     /* Succeeded in replacing the function */
     FRR_NODLL,  /* The requested DLL was not found */
@@ -696,10 +698,6 @@ extern "C" BOOL WINAPI DllMain(
 
   if (!InsertTrampoline(recallocPtr, (void*)&recalloc_proxy, nullptr, nullptr))
     abort();
-
-//  ReplaceFunctionWithStore("Kernel32", "HeapAlloc", (FUNCPTR)HeapAllocProxy, known_bytecodes, nullptr,  FRR_FAIL );
-//  ReplaceFunctionWithStore("Kernel32", "HeapReAlloc", (FUNCPTR)HeapReAllocProxy, known_bytecodes, nullptr,  FRR_FAIL );
-//  ReplaceFunctionWithStore("Kernel32", "HeapFree", (FUNCPTR)HeapFreeProxy, known_bytecodes, (FUNCPTR*)&origHeapFree,  FRR_FAIL );
 
   return TRUE;
 }
