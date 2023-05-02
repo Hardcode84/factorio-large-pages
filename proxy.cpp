@@ -586,6 +586,9 @@ static constexpr const size_t reallocSigLen = sizeof(reallocSig);
 static constexpr const unsigned char freeSig[] = {0x48, 0x85, 0xc9, 0x74, 0x37, 0x53, 0x48, 0x83, 0xec, 0x20, 0x4c, 0x8b, 0xc1, 0x33, 0xd2, 0x48, 0x8b, 0x0d, 0xa6, 0xd0, 0x8f, 0x00, 0xff, 0x15, 0x70, 0x1b, 0x0e, 0x00, 0x85, 0xc0, 0x75, 0x17, 0xe8, 0x7b, 0x94, 0xfe, 0xff, 0x48, 0x8b, 0xd8, 0xff, 0x15, 0xf6, 0x1f, 0x0e, 0x00, 0x8b, 0xc8, 0xe8, 0xb3, 0x93, 0xfe, 0xff, 0x89, 0x03, 0x48, 0x83, 0xc4, 0x20, 0x5b, 0xc3};
 static constexpr const size_t freeSigLen = sizeof(freeSig);
 
+static constexpr const unsigned char recallocSig[] = {0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x6c, 0x24, 0x10, 0x48, 0x89, 0x74, 0x24, 0x18, 0x57, 0x48, 0x83, 0xec, 0x20, 0x49, 0x8b, 0xe8, 0x48, 0x8b, 0xda, 0x48, 0x8b, 0xf1, 0x48, 0x85, 0xd2, 0x74, 0x1d, 0x33, 0xd2, 0x48, 0x8d, 0x42, 0xe0, 0x48, 0xf7, 0xf3, 0x49, 0x3b, 0xc0, 0x73, 0x0f, 0xe8, 0x63, 0xfd, 0xfe, 0xff, 0xc7, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x33, 0xc0, 0xeb, 0x41, 0x48, 0x85, 0xf6, 0x74, 0x0a, 0xe8, 0xbf, 0xd2, 0x00, 0x00, 0x48, 0x8b, 0xf8};
+static constexpr const size_t recallocSigLen = sizeof(recallocSig);
+
 static void* findSig(void* data, size_t dataSize, const void* sig, size_t sigLen) {
   for (size_t i = 0; i < (dataSize - sigLen); ++i) {
     auto ptr = static_cast<char*>(data) + i;
@@ -595,21 +598,39 @@ static void* findSig(void* data, size_t dataSize, const void* sig, size_t sigLen
   return nullptr;
 }
 
+extern "C" {
+__declspec(dllimport) void   __TBB_malloc_safer_free( void *ptr, void (*original_free)(void*));
+__declspec(dllimport) void * __TBB_malloc_safer_realloc( void *ptr, size_t, void* );
+__declspec(dllimport) void * __TBB_malloc_safer_aligned_realloc( void *ptr, size_t, size_t, void* );
+__declspec(dllimport) size_t __TBB_malloc_safer_msize( void *ptr, size_t (*orig_msize_crt80d)(void*));
+} // extern "C"
+
 static void* __cdecl malloc_proxy(size_t size) {
   return malloc(size);
+//  return scalable_malloc(size);
 }
 
 static void* __cdecl calloc_proxy(size_t count, size_t size) {
   return calloc(count, size);
+//  return scalable_calloc(count, size);
 }
 
 static void* realloc_proxy(void* ptr, size_t size) {
   return realloc(ptr, size);
+//  return scalable_realloc(ptr, size);
 }
 
 static void free_proxy(void* ptr) {
-  return free(ptr);
+  free(ptr);
+//  __TBB_malloc_safer_free(ptr, &free);
 }
+
+static void* __cdecl recalloc_proxy(void* ptr, size_t count, size_t size) {
+  auto res = realloc_proxy(ptr, count * size);
+  memset(res, 0, count * size);
+  return res;
+}
+
 
 extern "C" BOOL WINAPI DllMain(
     HINSTANCE hinstDLL,
@@ -626,7 +647,8 @@ extern "C" BOOL WINAPI DllMain(
   auto callocPtr = findSig(modBase, modSize, callocSig, callocSigLen);
   auto reallocPtr = findSig(modBase, modSize, reallocSig, reallocSigLen);
   auto freePtr = findSig(modBase, modSize, freeSig, freeSigLen);
-  if (!mallocPtr || !callocPtr || !reallocPtr || !freePtr)
+  auto recallocPtr = findSig(modBase, modSize, recallocSig, recallocSigLen);
+  if (!mallocPtr || !callocPtr || !reallocPtr || !freePtr || !recallocPtr)
     abort();
 
   if (!InsertTrampoline(mallocPtr, (void*)&malloc_proxy, nullptr, nullptr))
@@ -639,6 +661,9 @@ extern "C" BOOL WINAPI DllMain(
     abort();
 
   if (!InsertTrampoline(freePtr, (void*)&free_proxy, nullptr, nullptr))
+    abort();
+
+  if (!InsertTrampoline(recallocPtr, (void*)&recalloc_proxy, nullptr, nullptr))
     abort();
 
 //  ReplaceFunctionWithStore("Kernel32", "HeapAlloc", (FUNCPTR)HeapAllocProxy, known_bytecodes, nullptr,  FRR_FAIL );
