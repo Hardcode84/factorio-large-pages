@@ -16,7 +16,7 @@ You need to compile a patched version of TBB from https://github.com/Hardcode84/
 mkdir build
 mkdir install
 cd build
-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install .
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install ../
 ninja install
 ```
 
@@ -25,7 +25,7 @@ ninja install
 ```
 mkdir build
 cd build
-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DTBB_DIR=<tbb-install>/lib/cmake/TBB .
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DTBB_DIR=<tbb-install>/lib/cmake/TBB ../
 ninja all
 ```
 
