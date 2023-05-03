@@ -1,6 +1,7 @@
 #include <Windows.h>
 
 #include <cstdio>
+#include <cstring>
 
 #include "oneapi/tbb/scalable_allocator.h"
 
@@ -527,7 +528,6 @@ static void* __cdecl recalloc_proxy(void* ptr, size_t count, size_t size) {
   }
   return res;
 }
-
 
 extern "C" BOOL WINAPI DllMain(
     HINSTANCE hinstDLL,

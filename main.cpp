@@ -2,6 +2,7 @@
 #include <NTSecAPI.h>
 
 #include <iostream>
+#include <cstring>
 
 struct ProcessInfo {
   HANDLE hProcess;
