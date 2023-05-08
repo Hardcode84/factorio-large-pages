@@ -106,7 +106,7 @@ static int impl(int argc, char* argv[]) {
   VirtualFree(testPtr, 0, MEM_RELEASE);
 
   SetEnvironmentVariable("TBB_MALLOC_USE_HUGE_PAGES", "1");
-  SetEnvironmentVariable("TBB_VERSION", "1");
+//  SetEnvironmentVariable("TBB_VERSION", "1");
 
   std::cout << "Getting LoadLibraryA handle" << std::endl;
   auto hKernel32 = GetModuleHandle("Kernel32");
