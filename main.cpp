@@ -153,6 +153,10 @@ static int impl(int argc, char* argv[]) {
   std::cout << "WaitForSingleObject" << std::endl;
   WaitForSingleObject(process.hProcess, INFINITE);
 
+  DWORD res = 0;
+  GetExitCodeProcess(process.hProcess, &res);
+  std::cout << "Exit code " << res << std::endl;
+
   std::cout << "done" << std::endl;
   return 0;
 }
