@@ -15,3 +15,6 @@ add_executable(launcher main.cpp)
 
 add_library(proxy SHARED proxy.cpp)
 target_link_libraries(proxy TBB::tbb TBB::tbbmalloc TBB::tbbmalloc)
+
+install(TARGETS launcher DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS proxy DESTINATION ${CMAKE_INSTALL_PREFIX})
